@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document Management System</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f5f5f5;
+        }
+
+        .navbar {
+            background-color: #007bff;
+            color: white;
+            padding: 15px;
+            text-align: center;
+        }
+
+        .hero-section {
+            display: flex;
+            justify-content: space-between;
+            margin: 20px;
+        }
+
+        .hero-left, .hero-right {
+            flex: 1;
+            padding: 20px;
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .hero-left button, .hero-right button {
+            background-color: #007bff;
+            color: white;
+            padding: 10px;
+            border: none;
+            border-radius: 4px;
+            margin-right: 10px;
+            cursor: pointer;
+        }
+
+        .hero-right form {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .hero-right form label {
+            margin-bottom: 8px;
+        }
+
+        .hero-right form input {
+            padding: 8px;
+            margin-bottom: 16px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        .hero-right form button {
+            background-color: #28a745;
+            color: white;
+        }
+
+        .content table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .content th, .content td {
+            padding: 8px;
+            border: 1px solid #ddd;
+        }
+
+        .content th {
+            background-color: #f4f4f4;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <h1>Document Management System</h1>
+    </nav>
+    <div class="hero-section">
+        <div class="hero-left">
+            <button onclick="handleAddDocument()">Add a Document</button>
+            <button onclick="handleViewDocuments()">View Documents</button>
+            <input type="text" id="filterByUser" placeholder="Filter by User"/>
+            <button onclick="handleFilterByUser()">Filter</button>
+        </div>
+        <div class="hero-right" id="formContainer">
+            <!-- Form or Document Details will be injected here by JavaScript -->
+        </div>
+    </div>
+    <div class="content">
+        <h2>Document List</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Name</th>
+                    <th>Created Date</th>
+                    <th>Created By</th>
+                    <th>File</th> <!-- Added column for file links -->
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody id="documentList">
+                <!-- Documents will be injected here by JavaScript -->
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        let documents = [];
+        let selectedDocument = null;
+        let newDocument = {
+            name: '',
+            createdDate: '',
+            createdBy: '',
+            file: null
+        };
+
+        function handleAddDocument() {
+            selectedDocument = { isForm: true };
+            render();
+        }
+
+        function handleViewDocuments() {
+            selectedDocument = null;
+            render();
+        }
+
+        function handleFileChange(event) {
+            newDocument.file = event.target.files[0];
+        }
+
+        function handleSubmitForm(event) {
+            event.preventDefault();
+            
+            if (!newDocument.file) {
+                alert('Please upload a file.');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('name', newDocument.name);
+            formData.append('createdDate', newDocument.createdDate);
+            formData.append('createdBy', newDocument.createdBy);
+            formData.append('file', newDocument.file);
+
+            fetch('/api/documents/add/', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                documents.push({
+                    id: data.id,
+                    name: data.name,
+                    createdDate: data.createdDate,
+                    createdBy: data.createdBy,
+                    fileUrl: data.fileUrl
+                });
+                selectedDocument = null;
+                newDocument = {
+                    name: '',
+                    createdDate: '',
+                    createdBy: '',
+                    file: null
+                };
+                render();
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred while uploading the document.');
+            });
+        }
+
+        function handleDeleteDocument(id) {
+            fetch(`/api/documents/${id}/delete/`, {
+                method: 'DELETE'
+            })
+            .then(response => response.json())
+            .then(() => {
+                documents = documents.filter(doc => doc.id !== id);
+                render();
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred while deleting the document.');
+            });
+        }
+
+        function handleFilterByUser() {
+            const filterByUser = document.getElementById('filterByUser').value;
+            fetch(`/api/documents/filter/?filterByUser=${encodeURIComponent(filterByUser)}`)
+                .then(response => response.json())
+                .then(filteredDocuments => render(filteredDocuments))
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('An error occurred while filtering documents.');
+                });
+        }
+
+        function render(filteredDocuments = documents) {
+            const formContainer = document.getElementById('formContainer');
+            const documentList = document.getElementById('documentList');
+
+            if (selectedDocument && selectedDocument.isForm) {
+                formContainer.innerHTML = `
+                    <form onsubmit="handleSubmitForm(event)">
+                        <h2>Add a Document</h2>
+                        <label>Name:</label>
+                        <input type="text" value="${newDocument.name}" onchange="newDocument.name = this.value" required/>
+                        <label>Created Date:</label>
+                        <input type="datetime-local" value="${newDocument.createdDate ? new Date(newDocument.createdDate).toISOString().slice(0, -1) : ''}" onchange="newDocument.createdDate = this.value" required/>
+                        <label>Created By:</label>
+                        <input type="text" value="${newDocument.createdBy}" onchange="newDocument.createdBy = this.value" required/>
+                        <label>File:</label>
+                        <input type="file" onchange="handleFileChange(event)" accept=".pdf,.doc,.docx" required/>
+                        <button type="submit">Submit</button>
+                    </form>
+                `;
+            } else {
+                formContainer.innerHTML = '';
+            }
+
+            documentList.innerHTML = filteredDocuments.map(doc => `
+                <tr key="${doc.id}">
+                    <td>${doc.id}</td>
+                    <td>${doc.name}</td>
+                    <td>${new Date(doc.createdDate).toLocaleString()}</td>
+                    <td>${doc.createdBy}</td>
+                    <td><a href="${doc.fileUrl}" target="_blank">View File</a></td> <!-- File URL link -->
+                    <td><button onclick="handleDeleteDocument(${doc.id})">Delete</button></td>
+                </tr>
+            `).join('');
+        }
+
+        // Initialize documents from API
+        fetch('/api/documents/')
+            .then(response => response.json())
+            .then(data => {
+                documents = data;
+                render();
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred while loading documents.');
+            });
+    </script>
+</body>
+</html>
